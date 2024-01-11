@@ -15,18 +15,30 @@ if os_arch == "amd64": os_arch = "x86_64"
 if os_arch.find("iphone") != -1: os_arch = "aarch64"
 
 '''
-os_type = [windows, linux, macos, ios, android]
+os_type = [windows, linux, darwin]
 '''
 os_type = system().lower()
-if os_type == "linux":  os_type = "android" if os_arch == "aarch64" else os_type
-if os_type == "darwin": os_type = "ios" if os_arch == "aarch64" else "macos"
+
+'''
+os_name = [windows, linux, android, macos, ios]
+'''
+os_name = os_type
+if os_name == "linux":  os_name = "android" if os_arch == "aarch64" else os_name
+if os_name == "darwin": os_name = "ios" if os_arch == "aarch64" else "macos"
 
 print("os_bits =", os_bits)
 print("os_arch =", os_arch)
 print("os_type =", os_type)
+print("os_name =", os_name)
 
-def _ifdef_decorator_impl(platforms, func, frame):
-    if system() in platforms:
+__list_winnt = ["windows"]
+__list_posix = ["linux", "darwin"]
+
+def is_winnt(): return os_type in ["windows"]
+def is_posix(): return os_type in ["linux", "darwin"]
+
+def __ifdef_decorator_impl(platforms, func, frame):
+    if os_type in platforms:
         return func
     elif func.__name__ in frame.f_locals:
         return frame.f_locals[func.__name__]
@@ -36,20 +48,17 @@ def _ifdef_decorator_impl(platforms, func, frame):
                 f"Function `{func.__name__}` is not defined for `{os_type}` platform.")
         return _not_implemented
 
-__winnt = os_type == "windows"
-__posix = not __winnt
-
 def winnt(func):
-    return _ifdef_decorator_impl(__winnt, func, sys._getframe().f_back)
+    return __ifdef_decorator_impl(__list_winnt, func, sys._getframe().f_back)
 
 def posix(func):
-    return _ifdef_decorator_impl(__posix, func, sys._getframe().f_back)
+    return __ifdef_decorator_impl(__list_posix, func, sys._getframe().f_back)
 
 def load_external_shared_library(file):
     '''
     Load an external shared library (Eg. "file_name", "file_name.ext", "path/to/file_name.ext")
     '''
-    PLATFORM_SHARED_EXTENSION = { "windows": ".dll", "linux": ".so", "android": ".so", "macos": ".dylib", "Darwin": ".ios" }
+    OS_TYPE_SHARED_EXTENSIONS = { "windows": ".dll", "linux": ".so", "darwin": ".dylib" }
     from ctypes import CDLL
     try: result = CDLL(file)
     except:
@@ -57,7 +66,7 @@ def load_external_shared_library(file):
         l = os.path.splitext(file_name)
         assert len(l) > 0, "invalid input file"
         if l[-1] == "":
-            file_ext   = PLATFORM_SHARED_EXTENSION.get(os_type)
+            file_ext   = OS_TYPE_SHARED_EXTENSIONS.get(os_type)
             file_name += file_ext
         try: result = CDLL(file_name)
         except:
